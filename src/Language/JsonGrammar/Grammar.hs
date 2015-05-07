@@ -14,7 +14,7 @@ module Language.JsonGrammar.Grammar (
     Json(..), el, prop
   ) where
 
-import Prelude (Maybe(..), Monad(..), Int, Float, Eq(..))
+import Prelude (Maybe(..), Monad(..), Int, Float, Eq(..), Bool(..))
 import Control.Applicative ((<$>))
 import Control.Category (Category(..))
 import Data.Aeson (Value, FromJSON(..), ToJSON(..))
@@ -168,6 +168,7 @@ class Json a where
 instance Json Text  where grammar = Coerce (Predefined StringType) liftAeson
 instance Json Int   where grammar = Coerce (Predefined NumberType) liftAeson
 instance Json Float where grammar = Coerce (Predefined NumberType) liftAeson
+instance Json Bool  where grammar = Coerce (Predefined BooleanType) liftAeson
 
 instance Json a => Json [a] where
   grammar = Array (Many (Element (cons . grammar)) . nil)
