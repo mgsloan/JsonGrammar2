@@ -17,60 +17,63 @@ import qualified Data.Vector as V
 
 -- | Convert a 'Grammar' to a JSON serializer.
 serializeValue :: Grammar 'Val t1 t2 -> t2 -> Maybe t1
-serializeValue = \case
-  Id          -> return
-  g1 :. g2    -> serializeValue g1 >=> serializeValue g2
+serializeValue = serializeValue' []
 
-  Empty       -> fail "empty grammar"
-  g1 :<> g2   -> \x -> serializeValue g1 x <|> serializeValue g2 x
+serializeValue' :: Path -> Grammar 'Val t1 t2 -> t2 -> Maybe t1
+serializeValue' path = \case
+  Id          -> return
+  g1 :. g2    -> serializeValue' path g1 >=> serializeValue' path g2
+
+  Empty       -> failPath path "empty grammar"
+  g1 :<> g2   -> \x -> serializeValue' path g1 x <|> serializeValue' path g2 x
 
   Pure _ f    -> f
-  Many g      -> manyM (serializeValue g)
+  Many g      -> manyM (serializeValue' path g)
 
   Literal val -> return . (val :-)
 
-  Label _ g   -> serializeValue g
+  Label _ g   -> serializeValue' path g
 
   Object g    -> \x -> do
-    (obj, y) <- serializeProperties g (H.empty, x)
+    (obj, y) <- serializeProperties path g (H.empty, x)
     return (Ae.Object obj :- y)
 
   Array g     -> \x -> do
-    (arr, y) <- serializeElements g (V.empty, x)
+    (arr, y) <- serializeElements path g (V.empty, x)
     return (Ae.Array arr :- y)
 
-  Coerce _ g -> serializeValue g
+  Coerce _ g -> serializeValue' path g
 
 
 serializeProperties ::
-  Grammar 'Obj t1 t2 -> (Ae.Object, t2) -> Maybe (Ae.Object, t1)
-serializeProperties = \case
+  Path -> Grammar 'Obj t1 t2 -> (Ae.Object, t2) -> Maybe (Ae.Object, t1)
+serializeProperties path = \case
   Id           -> return
-  g1 :. g2     -> serializeProperties g1 >=> serializeProperties g2
+  g1 :. g2     -> serializeProperties path g1 >=> serializeProperties path g2
 
-  Empty        -> fail "empty grammar"
+  Empty        -> failPath path "empty grammar"
   g1 :<> g2    -> \objx ->
-    serializeProperties g1 objx <|> serializeProperties g2 objx
+    serializeProperties path g1 objx <|> serializeProperties path g2 objx
 
   Pure _ f     -> \(obj, x) -> (obj, ) <$> f x
-  Many g       -> manyM (serializeProperties g)
+  Many g       -> manyM (serializeProperties path g)
 
   Property n g -> \(obj, x) -> do
-    val :- y <- serializeValue g x
+    val :- y <- serializeValue' path g x
     return (H.insert n val obj, y)
 
 
-serializeElements :: Grammar 'Arr t1 t2 -> (Ae.Array, t2) -> Maybe (Ae.Array, t1)
-serializeElements = \case
+serializeElements :: Path -> Grammar 'Arr t1 t2 -> (Ae.Array, t2) -> Maybe (Ae.Array, t1)
+serializeElements path = \case
   Id        -> return
-  g1 :. g2  -> serializeElements g1 >=> serializeElements g2
+  g1 :. g2  -> serializeElements path g1 >=> serializeElements path g2
 
-  Empty     -> fail "empty grammar"
-  g1 :<> g2 -> \x -> serializeElements g1 x <|> serializeElements g2 x
+  Empty     -> failPath path "empty grammar"
+  g1 :<> g2 -> \x -> serializeElements path g1 x <|> serializeElements path g2 x
 
   Pure _ f  -> \(arr, x) -> (arr, ) <$> f x
-  Many g    -> manyM (serializeElements g)
+  Many g    -> manyM (serializeElements path g)
 
   Element g -> \(arr, x) -> do
-    val :- y <- serializeValue g x
+    val :- y <- serializeValue' path g x
     return (V.snoc arr val, y)
