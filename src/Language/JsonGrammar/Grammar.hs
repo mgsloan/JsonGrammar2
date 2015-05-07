@@ -10,7 +10,7 @@ module Language.JsonGrammar.Grammar (
     Grammar(..), Context(..), (:-)(..),
     pure, many, literal, label, object, property, array, element, coerce,
     fromPrism, defaultValue,
-    nil, cons, tup2,
+    nil, cons, tup2, tup3,
     Json(..), el, prop
   ) where
 
@@ -151,7 +151,12 @@ tup2 = Pure f g
     f (x :- y :- t) = return ((x, y) :- t)
     g ((x, y) :- t) = return (x :- y :- t)
 
-
+-- | A 'pure' grammar that wraps or unwraps a tuple.
+tup3 :: Grammar u (a :- b :- c :- t) ((a, b, c) :- t)
+tup3 = Pure f g
+  where
+    f (x :- y :- z :- t) = return ((x, y, z) :- t)
+    g ((x, y, z) :- t) = return (x :- y :- z :- t)
 
 -- Type-directed grammars
 
@@ -170,7 +175,8 @@ instance Json a => Json [a] where
 instance (Json a, Json b) => Json (a, b) where
   grammar = tup2 . Array (Element grammar . Element grammar)
 
-
+instance (Json a, Json b, Json c) => Json (a, b, c) where
+  grammar = tup3 . Array (Element grammar . Element grammar . Element grammar)
 
 -- Constructing grammars
 
